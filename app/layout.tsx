@@ -20,7 +20,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <globalDataContext.Provider value={{ products, setProducts, carts, setCarts }}>
-      <html>
+      <html lang="en">
+        <head>
+          <title>68100663</title>
+        </head>
         <body>
           <Header />
           <nav className='mt-3 flex justify-center gap-4 '>
