@@ -1,158 +1,289 @@
 'use client'
 
-import { useState, useContext } from "react";
-import Image from "next/image";
-import { Backdrop } from "@/components/tailgrids/core/overlay";
+import { useContext, useMemo, useState } from "react";
+import { Clock, Check, Trash2, Plus, X } from "lucide-react";
+import { Toggle } from "@/components/tailgrids/core/toggle";
 import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogBody,
-  DialogFooter,
-} from "@/components/tailgrids/core/dialog";
-
+  NativeSelect,
+  NativeSelectOption
+} from "@/components/tailgrids/core/native-select";
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/tailgrids/core/input-group";
-
-import { buttonStyles } from "@/components/tailgrids/core/button";
-import { login } from "@/data/credential";
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRoot,
+  TableRow
+} from "@/components/tailgrids/core/table";
+import { Pagination } from "@/components/tailgrids/core/pagination";
+import { Spinner } from "@/components/tailgrids/core/spinner";
 import { globalDataContext } from "@/context/globalData";
-import { Keyboard, Eye, EyeOff } from "lucide-react";
 
-export default function Home() {
-  const context = useContext(globalDataContext);
-  const user = context?.user;
-  const setUser = context?.setUser || (() => {});
+type TodoType = {
+  id: number;
+  title: string;
+  completed: boolean;
+};
 
-  const [emailPrefix, setEmailPrefix] = useState("");
-  const [password, setPassword] = useState("pass");
-  const [showPassword, setShowPassword] = useState(false);
+export default function Page() {
+  // ข้อมูล todos อยู่ที่ layout โหลดครั้งเดียว สลับแท็บแล้วไม่ต้องโหลดใหม่
+  const ctx = useContext(globalDataContext)
+  const todosRaw: TodoType[] = ctx.todos
+  const setTodosRaw: React.Dispatch<React.SetStateAction<TodoType[]>> = ctx.setTodos
+  const isLoading: boolean = ctx.todosLoading
+  const [onlyWaiting, setOnlyWaiting] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
 
-  const handleLogin = async () => {
-    try {
-      const fullEmail = `${emailPrefix}@company.com`;
-      const res = await login(fullEmail, password);
-      setUser(res); // ล็อกอินสำเร็จ บันทึกสถานะ
-    } catch (err) {
-      // ใช้ alert แจ้งเตือนเมื่อล็อกอินไม่สำเร็จ
-      alert(String(err));
-    }
+  // ID อัตโนมัติ = ID สูงสุดที่มี + 1
+  const nextId = todosRaw.reduce((max, t) => Math.max(max, t.id), 0) + 1;
+
+  const todos = useMemo(
+    () => todosRaw.filter((todo) => !onlyWaiting || !todo.completed),
+    [todosRaw, onlyWaiting]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(todos.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageItems = todos.slice(
+    (safePage - 1) * itemsPerPage,
+    safePage * itemsPerPage
+  );
+
+  const waitingClick = (id: number) => {
+    setTodosRaw((prev) =>
+      prev.map((todo) => (todo.id === id ? { ...todo, completed: true } : todo))
+    );
+  };
+
+  const deleteClick = (id: number) => {
+    setTodosRaw((prev) => prev.filter((todo) => todo.id !== id));
+  };
+
+  const addClick = () => {
+    setNewTitle("");
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => setIsModalOpen(false);
+
+  const submitAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = newTitle.trim();
+    if (title === "") return;
+
+    // เพิ่มท้ายตาราง (สถานะ waiting)
+    setTodosRaw((prev) => [...prev, { id: nextId, title, completed: false }]);
+
+    // พาไปหน้าสุดท้าย เพื่อให้เห็นรายการที่เพิ่งเพิ่ม
+    setCurrentPage(Math.ceil((todos.length + 1) / itemsPerPage));
+    setIsModalOpen(false);
   };
 
   return (
-    <div className="mx-auto mt-6 max-w-4xl px-4 relative">
-      {/* เนื้อหาหน้าแรกเดิมของคุณ */}
-      <div className="flex flex-col overflow-hidden rounded-lg border border-slate-300 shadow-sm md:flex-row">
-        {/* ซ้าย: รูป + ข้อมูลใต้รูป (มีเส้นคั่นด้านขวา) */}
-        <div className="w-full shrink-0 border-b border-slate-300 p-2 md:w-[215px] md:border-r md:border-b-0">
-          <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg">
-            <Image
-              src="/stdempimg.png"
-              alt="Student"
-              fill
-              priority
-              sizes="215px"
-              className="object-cover"
-            />
-          </div>
-
-          <div className="mt-3 space-y-0.5">
-            <p className="text-lg font-bold text-slate-900">โมไนย ศรีนวล</p>
-            <p className="text-xs text-slate-700">รหัสนักศึกษา 68100663</p>
-            <p className="text-xs text-slate-700">คณะ เทคโนโลยีสารสนเทศ</p>
-            <p className="text-xs text-slate-700">สาขาวิชา วิทยาการคอมพิวเตอร์และนวัตกรรมการพัฒนาซอฟต์แวร์</p>
-            <p className="text-xs text-slate-700">มหาวิทยาลัยศรีปทุม</p>
-          </div>
+    // todos container
+    <div className="w-[600px] mx-auto mt-4">
+      {/* controller */}
+      <div className="flex justify-between items-center">
+        {/* toggle */}
+        <div className="flex items-center gap-2">
+          <Toggle
+            label="Show only"
+            checked={onlyWaiting}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setOnlyWaiting(e.target.checked);
+              setCurrentPage(1);
+            }}
+          />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-2.5 py-1 text-sm font-medium text-white">
+            Waiting
+            <Clock className="size-4" />
+          </span>
         </div>
 
-        {/* ขวา: ข้อความ */}
-        <div className="flex-1 p-4 text-slate-700">
-          <h1 className="text-2xl font-bold text-slate-900">
-            CSI205 Front-End Software Development
-          </h1>
-          <p className="mt-3 text-base">
-            สวัสดี ผมโมไนย ศรีนวล เป็นนักศึกษาชั้นปีที่ 2 สาขาวิชาวิทยาการคอมพิวเตอร์และนวัตกรรมการพัฒนาซอฟต์แวร์ คณะเทคโนโลยีสารสนเทศ มหาวิทยาลัยศรีปทุม
-            มีความสนใจและสนุกไปกับการพัฒนาเว็บไซต์และแอปพลิเคชันด้วยเทคโนโลยี Front-End 
-          </p>
-          <ul className="mt-3 list-disc space-y-1 pl-6 text-base">
-            <li>
-              <span className="font-bold">เป้าหมาย:</span> ต้องการสนุกไปกับการเขียนโค้ดและสร้างสิ่งที่ต้องการ
-            </li>
-            <li>
-              <span className="font-bold">สายงานที่ต้องการ:</span> ต้องการทำงานในสาขา Front-End Development หรือ Web Development
-            </li>
-          </ul>
+        {/* dropdown */}
+        <div className="w-2/5">
+          <NativeSelect
+            placeholder="Select an option"
+            value={itemsPerPage}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              setItemsPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+          >
+            <NativeSelectOption value="5">5 items per page</NativeSelectOption>
+            <NativeSelectOption value="10">10 items per page</NativeSelectOption>
+            <NativeSelectOption value="50">50 items per page</NativeSelectOption>
+          </NativeSelect>
         </div>
       </div>
 
-      {/* ถ้ายังไม่ล็อกอิน ให้แสดงหน้า Dialog ล็อกอินทับหน้าแรกทันที */}
-      {!user && (
-        <Backdrop isOpen={true}>
-          <Dialog showCloseButton={false} className="max-w-md w-full p-6">
-            <DialogHeader>
-              <DialogTitle className="text-center text-xl font-bold">Who are you?</DialogTitle>
-            </DialogHeader>
+      {/* table */}
+      <div className="mt-4">
+        <TableRoot>
+          <TableHeader className="bg-black">
+  <TableRow className="bg-black">
+    <TableHead scope="col" className="bg-black text-white">ID</TableHead>
+    <TableHead scope="col" className="bg-black text-white">Title</TableHead>
+    <TableHead scope="col" className="bg-black text-white">
+                <div className="flex items-center justify-end gap-3">
+                  <span>Completed</span>
+                  {/* ปุ่มบวก: เปิด modal เพิ่ม todo */}
+                  <button
+                    type="button"
+                    onClick={addClick}
+                    aria-label="Add todo"
+                    className="inline-flex size-8 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-700"
+                  >
+                    <Plus className="size-5" />
+                  </button>
+                </div>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
 
-            <DialogBody className="space-y-4 mt-2">
-              {/* ช่อง Email: Input อยู่ซ้าย, @company.com อยู่ขวาสุด */}
-              <InputGroup className="relative">
-                <InputGroupAddon>
-                  <Keyboard className="w-4 h-4 text-gray-500" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  type="text"
-                  placeholder="user | admin | manager"
-                  value={emailPrefix}
-                  onChange={(e) => setEmailPrefix(e.target.value)}
-                  className="pr-28"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium pointer-events-none">
-                  @company.com
+          <TableBody>
+            {/* show spinner while loading */}
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={3}>
+                  <Spinner className="mx-auto" />
+                </TableCell>
+              </TableRow>
+            )}
+
+            {!isLoading && todos.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center text-red-500">
+                  No data, maybe connection refused (reload again)
+                </TableCell>
+              </TableRow>
+            )}
+
+            {pageItems.map((todo) => (
+              <TableRow key={todo.id}>
+                <TableCell>
+                  <span className="inline-block rounded-md bg-slate-600 px-2.5 py-1 text-sm font-semibold text-white">
+                    {todo.id}
+                  </span>
+                </TableCell>
+                <TableCell>{todo.title}</TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-end gap-2">
+                    {todo.completed ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-green-700 px-3 py-1.5 text-sm font-medium text-white">
+                        Done
+                        <Check className="size-4" />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => waitingClick(todo.id)}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-600"
+                      >
+                        Waiting
+                        <Clock className="size-4" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => deleteClick(todo.id)}
+                      aria-label={`Delete todo ${todo.id}`}
+                      className="inline-flex items-center justify-center rounded-md bg-red-500 px-2.5 py-1.5 text-white transition-colors hover:bg-red-700"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </TableRoot>
+      </div>
+
+      {/* pagination */}
+      {todos.length > 0 && (
+        <div className="mt-4 flex justify-center">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            onPageChange={(p) => setCurrentPage(p)}
+          />
+        </div>
+      )}
+
+      {/* modal: new todo */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm"
+          onClick={closeModal}
+          onKeyDown={(e) => e.key === "Escape" && closeModal()}
+        >
+          <form
+            onSubmit={submitAdd}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+          >
+            {/* header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex size-9 items-center justify-center rounded-lg bg-blue-100 text-slate-800">
+                  <Plus className="size-5" />
                 </span>
-              </InputGroup>
-
-              {/* ช่อง Password: Input อยู่ซ้าย, @company.com อยู่ขวาสุด */}
-              <InputGroup className="relative">
-                <InputGroupAddon 
-                  className="cursor-pointer" 
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4 text-gray-500" />
-                  ) : (
-                    <Eye className="w-4 h-4 text-gray-500" />
-                  )}
-                </InputGroupAddon>
-                <InputGroupInput
-                  type={showPassword ? "text" : "password"}
-                  placeholder="pass"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-28"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium pointer-events-none">
-                  @company.com
-                </span>
-              </InputGroup>
-            </DialogBody>
-
-            <DialogFooter className="flex justify-end mt-4">
+                <h2 className="text-xl font-bold text-slate-900">New todo</h2>
+              </div>
               <button
-                onClick={handleLogin}
-                className={buttonStyles({
-                  appearance: 'outline',
-                  variant: 'primary',
-                  size: 'sm'
-                }) + " px-6 cursor-pointer"}
+                type="button"
+                onClick={closeModal}
+                aria-label="Close"
+                className="text-slate-400 transition-colors hover:text-slate-600"
               >
-                Login
+                <X className="size-5" />
               </button>
-            </DialogFooter>
-          </Dialog>
-        </Backdrop>
+            </div>
+
+            {/* ID (auto) */}
+            <label className="mt-5 block text-sm text-slate-600">ID (Auto)</label>
+            <input
+              type="text"
+              value={nextId}
+              readOnly
+              className="mt-2 w-full rounded-lg bg-slate-100 px-4 py-2.5 text-slate-800 outline-none"
+            />
+
+            {/* Title */}
+            <label className="mt-4 block text-sm text-slate-600">Title</label>
+            <input
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Enter todo title"
+              autoFocus
+              className="mt-2 w-full rounded-lg border border-blue-300 px-4 py-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-300"
+            />
+
+            {/* footer */}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-lg border border-slate-300 px-5 py-2.5 font-medium text-slate-800 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={newTitle.trim() === ""}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Add todo
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

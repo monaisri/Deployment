@@ -10,21 +10,21 @@ const users: User[] = [
     {
         email: 'admin@company.com',
         password: 'pass',
-        name: 'Admin User',
+        name: 'นายแดง',
         role: 'admin',
         other: '...'
     },
     {
         email: 'user@company.com',
         password: 'pass',
-        name: 'Regular User',
+        name: 'นางเขียว',
         role: 'user',
         other: '...'
     },
     {
         email: 'manager@company.com',
         password: 'pass',
-        name: 'Manager User',
+        name: 'นายฟ้า',
         role: 'manager',
         other: '...'
     },

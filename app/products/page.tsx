@@ -6,11 +6,11 @@ import type { Product } from "@/data/products";
 import { globalDataContext } from "@/context/globalData";
 
 export default function Page() {
-    const { products, carts, setCarts, setProducts } = useContext(globalDataContext)
+    const { products, setCarts, setProducts } = useContext(globalDataContext)
 
     const addToCart = (product: Product) => {
-        setProducts(products.filter((p: Product) => p.id !== product.id))
-        setCarts([...carts, product])
+        setProducts((prev: Product[]) => prev.filter((p) => p.id !== product.id))
+        setCarts((prev: Product[]) => [...prev, product])
     }
 
     return (
@@ -37,7 +37,7 @@ export default function Page() {
                         </div>
 
                         {/* ชื่อสินค้า ด้านล่าง ปรับให้ลงมาชิดปุ่มพอดี */}
-                        <div className="absolute inset-x-0 bottom-[31px] bg-black/60 px-1 py-1 text-left text-xs leading-tight font-bold text-white line-clamp-2 z-10">
+                        <div className="absolute inset-x-0 bottom-[33px] bg-black/60 px-1 py-1 text-left text-xs leading-tight font-bold text-white line-clamp-2 z-10">
                             {product.title}
                         </div>
 
